@@ -157,11 +157,12 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Only start TCP listener when NOT running inside Vercel serverless environment
-if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+// Only start TCP listener when NOT running inside Vercel or Cloudflare serverless environments
+const isServerless = process.env.VERCEL === '1' || process.env.VERCEL_ENV || process.env.CF_PAGES || process.env.WORKERS;
+if (!isServerless) {
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
 }
 
-// Export app/server for Vercel / serverless deployments
+// Export app/server for Vercel / Cloudflare serverless deployments
 export default app;
