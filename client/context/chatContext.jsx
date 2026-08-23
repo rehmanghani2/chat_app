@@ -26,6 +26,61 @@ export const ChatProvider = ({ children }) => {
     // Status / Stories State
     const [statuses, setStatuses] = useState([]);
 
+    // WhatsApp Extras: Pinned Chats, Starred Messages, Muted Chats
+    const [pinnedChats, setPinnedChats] = useState(() => JSON.parse(localStorage.getItem('whatsapp_pinned') || '[]'));
+    const [starredMessages, setStarredMessages] = useState(() => JSON.parse(localStorage.getItem('whatsapp_starred') || '[]'));
+    const [mutedChats, setMutedChats] = useState(() => JSON.parse(localStorage.getItem('whatsapp_muted') || '[]'));
+
+    const togglePinChat = (chatId) => {
+        setPinnedChats((prev) => {
+            const updated = prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [...prev, chatId];
+            localStorage.setItem('whatsapp_pinned', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const toggleStarMessage = (messageId) => {
+        setStarredMessages((prev) => {
+            const updated = prev.includes(messageId) ? prev.filter((id) => id !== messageId) : [...prev, messageId];
+            localStorage.setItem('whatsapp_starred', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const toggleMuteChat = (chatId) => {
+        setMutedChats((prev) => {
+            const updated = prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [...prev, chatId];
+            localStorage.setItem('whatsapp_muted', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    // Personalization & Settings State
+    const [wallpaper, setWallpaperState] = useState(() => localStorage.getItem('whatsapp_wallpaper') || 'default');
+    const [fontSize, setFontSizeState] = useState(() => localStorage.getItem('whatsapp_fontsize') || 'normal');
+    const [soundEnabled, setSoundEnabledState] = useState(() => localStorage.getItem('whatsapp_sound') !== 'false');
+    const [readReceipts, setReadReceiptsState] = useState(() => localStorage.getItem('whatsapp_readreceipts') !== 'false');
+
+    const setWallpaper = (val) => {
+        setWallpaperState(val);
+        localStorage.setItem('whatsapp_wallpaper', val);
+    };
+
+    const setFontSize = (val) => {
+        setFontSizeState(val);
+        localStorage.setItem('whatsapp_fontsize', val);
+    };
+
+    const setSoundEnabled = (val) => {
+        setSoundEnabledState(val);
+        localStorage.setItem('whatsapp_sound', val);
+    };
+
+    const setReadReceipts = (val) => {
+        setReadReceiptsState(val);
+        localStorage.setItem('whatsapp_readreceipts', val);
+    };
+
     const { socket, axios, authUser } = useContext(AuthContext);
     const [streamToken, setStreamToken] = useState("");
 
@@ -193,6 +248,46 @@ export const ChatProvider = ({ children }) => {
                         msg._id === messageId ? { ...msg, reactions: data.message.reactions } : msg
                     )
                 );
+            }
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    // Forward Message Helper
+    const forwardMessage = async (target, messageObj) => {
+        try {
+            const payload = {
+                text: messageObj.text || '',
+                image: messageObj.image || null,
+                audio: messageObj.audio || null,
+                fileUrl: messageObj.fileUrl || null,
+                fileName: messageObj.fileName || '',
+                fileType: messageObj.fileType || '',
+                fileSize: messageObj.fileSize || '',
+                isForwarded: true
+            };
+
+            if (target.isGroup || target.members) {
+                const { data } = await axios.post(`/api/groups/send/${target._id}`, payload);
+                if (data.success) {
+                    if (selectedGroup && selectedGroup._id === target._id) {
+                        setMessages((prev) => [...prev, data.newMessage]);
+                    }
+                    toast.success(`Forwarded to group "${target.name}"`);
+                } else {
+                    toast.error(data.message);
+                }
+            } else {
+                const { data } = await axios.post(`/api/messages/send/${target._id}`, payload);
+                if (data.success) {
+                    if (selectedUser && selectedUser._id === target._id) {
+                        setMessages((prev) => [...prev, data.newMessage]);
+                    }
+                    toast.success(`Forwarded to ${target.fullName}`);
+                } else {
+                    toast.error(data.message);
+                }
             }
         } catch (error) {
             toast.error(error.message);
@@ -459,6 +554,7 @@ export const ChatProvider = ({ children }) => {
         getUsers,
         getMessages,
         sendMessage,
+        forwardMessage,
         unseenMessages,
         setUnseenMessages,
         typingUsers,
@@ -488,7 +584,23 @@ export const ChatProvider = ({ children }) => {
         getStatuses,
         createStatus,
         viewStatus,
-        blockUser
+        blockUser,
+        // WhatsApp Extras Exports (Pin, Star, Mute)
+        pinnedChats,
+        starredMessages,
+        mutedChats,
+        togglePinChat,
+        toggleStarMessage,
+        toggleMuteChat,
+        // Settings & Personalization Exports
+        wallpaper,
+        setWallpaper,
+        fontSize,
+        setFontSize,
+        soundEnabled,
+        setSoundEnabled,
+        readReceipts,
+        setReadReceipts
     };
 
     return (

@@ -21,7 +21,8 @@ const messageSchema = new mongoose.Schema({
         }
     ],
     delivered: {type: Boolean, default: false},
-    seen: {type: Boolean, default: false}
+    seen: {type: Boolean, default: false},
+    isForwarded: {type: Boolean, default: false}
 }, {timestamps: true});
 
 const Message = mongoose.model("Message", messageSchema);

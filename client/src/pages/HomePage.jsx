@@ -6,23 +6,25 @@ import { ChatContext } from '../../context/chatContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const HomePage = () => {
+  const { selectedUser, selectedGroup } = useContext(ChatContext);
 
-    // const [selectedUser, setSelectedUser] = useState(false)
-    const {selectedUser} = useContext(ChatContext);
-
+  const isUserSelected = !!selectedUser;
 
   return (
-    <div className='border w-full h-screen sm:px-[10%] sm:py-[3%]'>
-       <div className={`backdrop-blur-xl border-2 border-gray-600
-       rounded-2xl overflow-hidden h-[100%] grid grid-cols-1 relative
-       ${selectedUser ? 'md:grid-cols-[1fr_1.5fr_1fr] xl:grid-cols-[1fr_2fr_1fr]' : 'md:grid-cols-2'} 
-         `}>
+    <div className="w-full h-screen p-1.5 md:p-3 bg-[#0f0c1b] flex items-center justify-center overflow-hidden">
+      <div
+        className={`backdrop-blur-2xl border border-violet-500/30 rounded-2xl overflow-hidden w-full h-full shadow-2xl grid transition-all duration-300 ${
+          isUserSelected
+            ? 'grid-cols-1 md:grid-cols-[340px_1fr_280px] xl:grid-cols-[380px_1fr_300px]'
+            : 'grid-cols-1 md:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr]'
+        }`}
+      >
         <Sidebar />
-        <ChatContainer/>
+        <ChatContainer />
         <RightSidebar />
-       </div>
+      </div>
     </div>
-  )
-}
+  );
+};
 
 export default HomePage

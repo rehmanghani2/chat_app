@@ -75,23 +75,33 @@ export const markMessageAsSeen = async (req, res) => {
 // Send message to selected user
 export const sendMessage = async (req, res) => {
     try {
-        const { text, image, audio, fileData, fileName, fileType, fileSize, replyTo } = req.body;
+        const { text, image, audio, fileUrl: existingFileUrl, fileData, fileName, fileType, fileSize, replyTo, isForwarded } = req.body;
         const receiverId = req.params.id;
         const senderId = req.user._id;
 
         let imageUrl, audioUrl, fileUrl;
 
         if (image) {
-            const uploadResponse = await cloudinary.uploader.upload(image);
-            imageUrl = uploadResponse.secure_url;
+            if (image.startsWith('http://') || image.startsWith('https://')) {
+                imageUrl = image;
+            } else {
+                const uploadResponse = await cloudinary.uploader.upload(image);
+                imageUrl = uploadResponse.secure_url;
+            }
         }
 
         if (audio) {
-            const uploadResponse = await cloudinary.uploader.upload(audio, { resource_type: "video" });
-            audioUrl = uploadResponse.secure_url;
+            if (audio.startsWith('http://') || audio.startsWith('https://')) {
+                audioUrl = audio;
+            } else {
+                const uploadResponse = await cloudinary.uploader.upload(audio, { resource_type: "video" });
+                audioUrl = uploadResponse.secure_url;
+            }
         }
 
-        if (fileData) {
+        if (existingFileUrl) {
+            fileUrl = existingFileUrl;
+        } else if (fileData) {
             const uploadResponse = await cloudinary.uploader.upload(fileData, { resource_type: "raw" });
             fileUrl = uploadResponse.secure_url;
         }
@@ -111,7 +121,8 @@ export const sendMessage = async (req, res) => {
             fileType: fileType || "",
             fileSize: fileSize || "",
             replyTo: replyTo || null,
-            delivered: isDelivered
+            delivered: isDelivered,
+            isForwarded: !!isForwarded
         });
 
         if (replyTo) {

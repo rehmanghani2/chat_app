@@ -6,6 +6,7 @@ import { AuthContext } from '../../context/AuthContext';
 import AudioRecorder from './AudioRecorder';
 import GroupInfoModal from './GroupInfoModal';
 import UserProfileModal from './UserProfileModal';
+import ForwardModal from './ForwardModal';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -24,7 +25,12 @@ import {
   Play,
   Pause,
   Video,
-  PhoneCall
+  PhoneCall,
+  Search,
+  Star,
+  Volume2,
+  VolumeX,
+  Forward
 } from 'lucide-react';
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
@@ -46,7 +52,14 @@ const ChatContainer = () => {
     replyingTo,
     setReplyingTo,
     reactToMessage,
-    initiateCall
+    initiateCall,
+    starredMessages,
+    toggleStarMessage,
+    mutedChats,
+    toggleMuteChat,
+    wallpaper,
+    fontSize,
+    readReceipts
   } = useContext(ChatContext);
 
   const { authUser, onlineUsers } = useContext(AuthContext);
@@ -60,11 +73,24 @@ const ChatContainer = () => {
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
   const [selectedProfileUser, setSelectedProfileUser] = useState(null);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
+
+  // In-Chat Search State
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const navigate = useNavigate();
 
   const activeChat = selectedGroup || selectedUser;
   const isGroupChat = !!selectedGroup;
+  const isMuted = activeChat ? mutedChats.includes(activeChat._id) : false;
+
+  const filteredMessages = searchQuery
+    ? messages.filter((msg) =>
+        msg.text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        msg.fileName?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : messages;
 
   // Handle typing status change
   const handleInputChange = (e) => {
@@ -215,6 +241,14 @@ const ChatContainer = () => {
         />
       )}
 
+      {/* Message Forward Modal */}
+      {forwardingMessage && (
+        <ForwardModal
+          message={forwardingMessage}
+          onClose={() => setForwardingMessage(null)}
+        />
+      )}
+
       {/* -------- HEADER ------- */}
       <div className="flex items-center gap-3 py-3 px-4 border-b border-stone-500 bg-black/20 z-10">
         <img
@@ -277,46 +311,122 @@ const ChatContainer = () => {
           className="md:hidden max-w-7 cursor-pointer"
         />
 
-        {isGroupChat ? (
+        {/* Action Controls: Search, Mute, Voice, Video */}
+        <div className="flex items-center gap-2">
+          {/* In-Chat Search Toggle Button */}
           <button
-            onClick={() => setShowGroupInfoModal(true)}
-            className="p-2 text-violet-300 hover:text-white bg-violet-600/30 hover:bg-violet-600/50 rounded-full transition-colors"
-            title="Group Information"
+            onClick={() => {
+              setShowSearch((prev) => !prev);
+              if (showSearch) setSearchQuery('');
+            }}
+            className={`p-2 rounded-full transition-all cursor-pointer ${
+              showSearch
+                ? 'bg-violet-600 text-white'
+                : 'text-violet-300 hover:text-white bg-violet-600/20 hover:bg-violet-600/40'
+            }`}
+            title="Search Messages in Chat"
           >
-            <Info size={19} />
+            <Search size={18} />
           </button>
-        ) : (
-          <div className="flex items-center gap-2">
+
+          {/* Mute Chat Toggle Button */}
+          <button
+            onClick={() => activeChat && toggleMuteChat(activeChat._id)}
+            className={`p-2 rounded-full transition-all cursor-pointer ${
+              isMuted
+                ? 'bg-red-600/30 text-red-400 border border-red-500/40'
+                : 'text-violet-300 hover:text-white bg-violet-600/20 hover:bg-violet-600/40'
+            }`}
+            title={isMuted ? 'Unmute Notifications' : 'Mute Notifications'}
+          >
+            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+
+          {isGroupChat ? (
             <button
-              onClick={() => {
-                getStreamToken();
-                handleCall(false);
-              }}
-              className="p-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white rounded-full shadow-lg shadow-indigo-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              title="Start Voice Call"
+              onClick={() => setShowGroupInfoModal(true)}
+              className="p-2 text-violet-300 hover:text-white bg-violet-600/30 hover:bg-violet-600/50 rounded-full transition-colors cursor-pointer"
+              title="Group Information"
             >
-              <PhoneCall size={18} />
+              <Info size={19} />
             </button>
-            <button
-              onClick={() => {
-                getStreamToken();
-                handleCall(true);
-              }}
-              className="p-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-full shadow-lg shadow-emerald-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              title="Start Video Call"
-            >
-              <Video size={18} />
-            </button>
-          </div>
-        )}
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  getStreamToken();
+                  handleCall(false);
+                }}
+                className="p-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white rounded-full shadow-lg shadow-indigo-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+                title="Start Voice Call"
+              >
+                <PhoneCall size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  getStreamToken();
+                  handleCall(true);
+                }}
+                className="p-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-full shadow-lg shadow-emerald-500/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+                title="Start Video Call"
+              >
+                <Video size={18} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
+      {/* In-Chat Search Bar Drawer */}
+      {showSearch && (
+        <div className="bg-[#1e1b2e] border-b border-violet-500/30 px-4 py-2 flex items-center gap-3 z-10 shadow-lg">
+          <Search size={16} className="text-violet-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search messages in this chat..."
+            className="flex-1 bg-transparent text-xs text-white outline-none placeholder-gray-400 py-1"
+            autoFocus
+          />
+          {searchQuery && (
+            <span className="text-[10px] text-violet-300 font-mono">
+              {filteredMessages.length} match(es)
+            </span>
+          )}
+          <button
+            onClick={() => {
+              setShowSearch(false);
+              setSearchQuery('');
+            }}
+            className="text-gray-400 hover:text-white p-1"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* --------- CHAT MESSAGES AREA -------- */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, index) => {
+      <div
+        className={`flex-1 overflow-y-auto p-4 space-y-4 transition-all duration-300 ${
+          wallpaper === 'dark-violet'
+            ? 'bg-gradient-to-br from-[#1e1b2e] via-[#2d1b4e] to-[#120e24]'
+            : wallpaper === 'emerald'
+            ? 'bg-gradient-to-br from-[#062c24] via-[#0b3c32] to-[#041a15]'
+            : wallpaper === 'midnight'
+            ? 'bg-gradient-to-br from-[#0b192c] via-[#1e3e62] to-[#000000]'
+            : wallpaper === 'sunset'
+            ? 'bg-gradient-to-br from-[#2b1055] via-[#591a53] to-[#25082a]'
+            : wallpaper === 'cyber-dark'
+            ? 'bg-gradient-to-br from-[#0d1117] via-[#161b22] to-[#010409]'
+            : 'bg-black/10'
+        }`}
+      >
+        {filteredMessages.map((msg, index) => {
           const senderObj = typeof msg.senderId === 'object' ? msg.senderId : null;
           const senderIdVal = senderObj ? senderObj._id : msg.senderId;
           const isMe = senderIdVal === authUser._id;
+          const isStarred = starredMessages.includes(msg._id);
 
           return (
             <div
@@ -327,7 +437,7 @@ const ChatContainer = () => {
             >
               {/* Message Bubble Container */}
               <div className="relative max-w-[80%] md:max-w-[65%]">
-                {/* 6 Emoji Reaction Picker Bar on Hover/Tap */}
+                {/* 6 Emoji Reaction + Star + Reply Toolbar */}
                 <div
                   className={`absolute -top-9 ${
                     isMe ? 'right-0' : 'left-0'
@@ -342,6 +452,28 @@ const ChatContainer = () => {
                       {emoji}
                     </button>
                   ))}
+
+                  {/* Star / Bookmark Button */}
+                  <button
+                    onClick={() => toggleStarMessage(msg._id)}
+                    className={`ml-1 pl-1 border-l border-gray-600 ${
+                      isStarred ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
+                    }`}
+                    title={isStarred ? 'Unstar Message' : 'Star Message'}
+                  >
+                    <Star size={14} className={isStarred ? 'fill-yellow-400' : ''} />
+                  </button>
+
+                  {/* Forward Button */}
+                  <button
+                    onClick={() => setForwardingMessage(msg)}
+                    className="ml-1 pl-1 border-l border-gray-600 text-gray-400 hover:text-violet-400"
+                    title="Forward Message"
+                  >
+                    <Forward size={14} />
+                  </button>
+
+                  {/* Reply Button */}
                   <button
                     onClick={() => setReplyingTo(msg)}
                     className="ml-1 pl-1 border-l border-gray-600 text-gray-400 hover:text-violet-400"
@@ -374,6 +506,13 @@ const ChatContainer = () => {
                       : 'bg-[#282142] rounded-bl-none border border-gray-700/50'
                   }`}
                 >
+                  {/* Forwarded Tag */}
+                  {msg.isForwarded && (
+                    <p className="text-[10px] italic text-gray-300 flex items-center gap-1 mb-1">
+                      <Forward size={10} className="text-violet-300" /> Forwarded
+                    </p>
+                  )}
+
                   {/* Sender Name in Group Chat */}
                   {isGroupChat && !isMe && senderObj && (
                     <p className="text-xs font-bold text-violet-300 mb-1">
@@ -383,7 +522,15 @@ const ChatContainer = () => {
 
                   {/* Text Message */}
                   {msg.text && (
-                    <p className="text-sm font-normal leading-relaxed whitespace-pre-wrap">
+                    <p
+                      className={`font-normal leading-relaxed whitespace-pre-wrap ${
+                        fontSize === 'small'
+                          ? 'text-xs'
+                          : fontSize === 'large'
+                          ? 'text-base'
+                          : 'text-sm'
+                      }`}
+                    >
                       {msg.text}
                     </p>
                   )}
@@ -477,8 +624,11 @@ const ChatContainer = () => {
                     </div>
                   )}
 
-                  {/* Timestamp & Ticks Footer */}
+                  {/* Timestamp, Star Indicator & Ticks Footer */}
                   <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-violet-200/70">
+                    {isStarred && (
+                      <Star size={11} className="text-yellow-400 fill-yellow-400 mr-0.5" title="Starred Message" />
+                    )}
                     <span>{formatMessageTime(msg.createdAt)}</span>
                     {!isGroupChat && renderStatusTicks(msg)}
                   </div>
