@@ -10,100 +10,107 @@ import { Server } from "socket.io";
 import groupRouter from "./routes/groupRoutes.js";
 import statusRouter from "./routes/statusRoutes.js";
 
-// Create Express app and Http server
+// Create Express app
 const app = express();
-const server = http.createServer(app)
 
-// Initialize socket.io server
-export const io = new Server(server, {
-    cors: {origin: "*"}
-})
-// Store online users
+// Store online users and Socket.IO reference
 export const userSocketMap = {}; // {userId: socketId}
+export let io = null;
+export let server = null;
 
-// Socket.io connection handler
-io.on("connection", (socket) => {
-    const userId = socket.handshake.query.userId;
-    console.log("User connected", userId);
+// Only initialize Socket.io & HTTP TCP server in standard Node.js environments (Render, Railway, Local)
+try {
+    if (typeof http.createServer === 'function' && process.env.CF_PAGES !== '1' && !process.env.WORKERS) {
+        server = http.createServer(app);
+        io = new Server(server, {
+            cors: { origin: "*" }
+        });
 
-    if(userId) userSocketMap[userId] = socket.id;
-    // Emit online users to all connected clients
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+        io.on("connection", (socket) => {
+            const userId = socket.handshake.query.userId;
+            console.log("User connected", userId);
 
-    socket.on("typing", ({ to }) => {
-        const receiverSocketId = userSocketMap[to];
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("userTyping", { from: userId });
-        }
-    });
+            if (userId) userSocketMap[userId] = socket.id;
+            io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-    socket.on("stopTyping", ({ to }) => {
-        const receiverSocketId = userSocketMap[to];
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("userStopTyping", { from: userId });
-        }
-    });
-
-    // Group Socket Room listeners
-    socket.on("joinGroup", ({ groupId }) => {
-        socket.join(`group_${groupId}`);
-    });
-
-    socket.on("leaveGroup", ({ groupId }) => {
-        socket.leave(`group_${groupId}`);
-    });
-
-    socket.on("groupTyping", ({ groupId }) => {
-        socket.to(`group_${groupId}`).emit("userGroupTyping", { groupId, userId });
-    });
-
-    socket.on("groupStopTyping", ({ groupId }) => {
-        socket.to(`group_${groupId}`).emit("userGroupStopTyping", { groupId, userId });
-    });
-
-    // Call Signaling listeners
-    socket.on("startCall", ({ to, callId, isVideo, callerName, callerPic }) => {
-        const receiverSocketId = userSocketMap[to];
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("incomingCall", {
-                from: userId,
-                callerName,
-                callerPic,
-                callId,
-                isVideo
+            socket.on("typing", ({ to }) => {
+                const receiverSocketId = userSocketMap[to];
+                if (receiverSocketId && io) {
+                    io.to(receiverSocketId).emit("userTyping", { from: userId });
+                }
             });
-        }
-    });
 
-    socket.on("rejectCall", ({ to, callId }) => {
-        const callerSocketId = userSocketMap[to];
-        if (callerSocketId) {
-            io.to(callerSocketId).emit("callRejected", { callId });
-        }
-    });
+            socket.on("stopTyping", ({ to }) => {
+                const receiverSocketId = userSocketMap[to];
+                if (receiverSocketId && io) {
+                    io.to(receiverSocketId).emit("userStopTyping", { from: userId });
+                }
+            });
 
-    socket.on("acceptCall", ({ to, callId }) => {
-        const callerSocketId = userSocketMap[to];
-        if (callerSocketId) {
-            io.to(callerSocketId).emit("callAccepted", { callId });
-        }
-    });
+            // Group Socket Room listeners
+            socket.on("joinGroup", ({ groupId }) => {
+                socket.join(`group_${groupId}`);
+            });
 
-    socket.on("endCall", ({ to, callId }) => {
-        const targetSocketId = userSocketMap[to];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit("callEnded", { callId });
-        } else {
-            socket.broadcast.emit("callEnded", { callId });
-        }
-    });
+            socket.on("leaveGroup", ({ groupId }) => {
+                socket.leave(`group_${groupId}`);
+            });
 
-    socket.on("disconnect" ,() => {
-        console.log("User disconnected", userId);
-        delete userSocketMap[userId];
-        io.emit("getOnlineUsers", Object.keys(userSocketMap));
-    })
-})
+            socket.on("groupTyping", ({ groupId }) => {
+                socket.to(`group_${groupId}`).emit("userGroupTyping", { groupId, userId });
+            });
+
+            socket.on("groupStopTyping", ({ groupId }) => {
+                socket.to(`group_${groupId}`).emit("userGroupStopTyping", { groupId, userId });
+            });
+
+            // Call Signaling listeners
+            socket.on("startCall", ({ to, callId, isVideo, callerName, callerPic }) => {
+                const receiverSocketId = userSocketMap[to];
+                if (receiverSocketId && io) {
+                    io.to(receiverSocketId).emit("incomingCall", {
+                        from: userId,
+                        callerName,
+                        callerPic,
+                        callId,
+                        isVideo
+                    });
+                }
+            });
+
+            socket.on("rejectCall", ({ to, callId }) => {
+                const callerSocketId = userSocketMap[to];
+                if (callerSocketId && io) {
+                    io.to(callerSocketId).emit("callRejected", { callId });
+                }
+            });
+
+            socket.on("acceptCall", ({ to, callId }) => {
+                const callerSocketId = userSocketMap[to];
+                if (callerSocketId && io) {
+                    io.to(callerSocketId).emit("callAccepted", { callId });
+                }
+            });
+
+            socket.on("endCall", ({ to, callId }) => {
+                const targetSocketId = userSocketMap[to];
+                if (targetSocketId && io) {
+                    io.to(targetSocketId).emit("callEnded", { callId });
+                } else if (io) {
+                    socket.broadcast.emit("callEnded", { callId });
+                }
+            });
+
+            socket.on("disconnect", () => {
+                console.log("User disconnected", userId);
+                delete userSocketMap[userId];
+                if (io) io.emit("getOnlineUsers", Object.keys(userSocketMap));
+            });
+        });
+    }
+} catch (e) {
+    console.warn("Socket.IO setup bypassed for Cloudflare Workers edge environment:", e.message);
+}
 
 // Middleware setup
 app.use(express.json({limit: "50mb"})); 
@@ -159,7 +166,7 @@ app.use((err, req, res, next) => {
 
 // Only start TCP listener when NOT running inside Vercel or Cloudflare serverless environments
 const isServerless = process.env.VERCEL === '1' || process.env.VERCEL_ENV || process.env.CF_PAGES || process.env.WORKERS;
-if (!isServerless) {
+if (!isServerless && server && typeof server.listen === 'function') {
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
 }
