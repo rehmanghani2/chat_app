@@ -21,7 +21,7 @@ import pic3 from './pic3.png'
 import pic4 from './pic4.png'
 import img1 from './img1.jpg'
 import img2 from './img2.jpg'
-import call_icon from './callicon.png'
+import call_icon from './callicon.PNG'
 
 const assets = {
     avatar_icon,
