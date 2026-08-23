@@ -1,4 +1,5 @@
 import cloudinary from "../lib/cloudinary.js";
+import { generateStreamToken, upsertStreamUser } from "../lib/stream.js";
 import { generateToken } from "../lib/utils.js";
 import User from "../models/User.js";
 import bycrypt from 'bcryptjs';
@@ -20,9 +21,22 @@ export const signup = async (request, response)=> {
         const newUser = await User.create({
             fullName, email, password: hashedPassword, bio
         });
+
+        // Stream upsetter
+        await upsertStreamUser({
+            id: newUser._id.toString(),
+            name: newUser.fullName,
+            image: newUser.profilePic || "",
+        });
+        console.log(`Stream user created for ${newUser.fullName}`);
+       
+       
+
         const token = generateToken(newUser._id)
 
-        response.json({success: true, userData: newUser, token,
+        // const streamToken = generateStreamToken(newUser._id);
+
+        response.json({success: true, userData: newUser, token,// streamToken, 
              message: "Account created successfully"});
     } catch (error) {
         console.log(error.message);
@@ -43,12 +57,16 @@ export const login = async (req, res) => {
         }
 
         const token = generateToken(userData._id);
+        
+        
+        
+      //  const streamToken = generateStreamToken(userData._id);
 
         res.json({success: true, userData, token, message: "login successful"});
 
     } catch (error) {
         console.log(error.message)
-        req.json({success: false, message: error.message});
+        res.json({success: false, message: error.message});
     }
 }
 // Controller to check if user is authenticated
@@ -70,6 +88,19 @@ export const updateProfile = async (req, res) => {
 
             updatedUser = await User.findByIdAndUpdate(userId, {profilePic: upload.secure_url, bio, fullName}, {new: true});
         }
+        //also update stream user
+        try {
+            await upsertStreamUser({
+            id: updatedUser._id.toString(),
+            name: updatedUser.fullName,
+            image: updatedUser.profilePic || ""
+        });
+        console.log(`Stream user updated after profile updation ${updatedUser.fullName}`);
+
+        } catch (streamError) {
+            console.log("Error updating Stream user during profile updation ", streamError.message);
+        }
+      
 
         res.json({ success: true, user: updatedUser });
     } catch (error) {
@@ -77,3 +108,27 @@ export const updateProfile = async (req, res) => {
         res.json({ success: true, user: error.message });
     }
 }
+
+// Controller to block / unblock a user
+export const toggleBlockUser = async (req, res) => {
+    try {
+        const { id: targetUserId } = req.params;
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) return res.json({ success: false, message: "User not found" });
+
+        const isBlocked = user.blockedUsers?.includes(targetUserId);
+        if (isBlocked) {
+            user.blockedUsers = user.blockedUsers.filter(id => id.toString() !== targetUserId);
+        } else {
+            user.blockedUsers.push(targetUserId);
+        }
+
+        await user.save();
+        res.json({ success: true, isBlocked: !isBlocked, blockedUsers: user.blockedUsers });
+    } catch (error) {
+        console.log("Error in toggleBlockUser:", error.message);
+        res.json({ success: false, message: error.message });
+    }
+};

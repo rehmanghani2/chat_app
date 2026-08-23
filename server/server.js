@@ -7,6 +7,9 @@ import userRouter from "./routes/userRoutes.js";
 import messageRouter from "./routes/messageRoutes.js";
 import { Server } from "socket.io";
 
+import groupRouter from "./routes/groupRoutes.js";
+import statusRouter from "./routes/statusRoutes.js";
+
 // Create Express app and Http server
 const app = express();
 const server = http.createServer(app)
@@ -27,6 +30,74 @@ io.on("connection", (socket) => {
     // Emit online users to all connected clients
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+    socket.on("typing", ({ to }) => {
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("userTyping", { from: userId });
+        }
+    });
+
+    socket.on("stopTyping", ({ to }) => {
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("userStopTyping", { from: userId });
+        }
+    });
+
+    // Group Socket Room listeners
+    socket.on("joinGroup", ({ groupId }) => {
+        socket.join(`group_${groupId}`);
+    });
+
+    socket.on("leaveGroup", ({ groupId }) => {
+        socket.leave(`group_${groupId}`);
+    });
+
+    socket.on("groupTyping", ({ groupId }) => {
+        socket.to(`group_${groupId}`).emit("userGroupTyping", { groupId, userId });
+    });
+
+    socket.on("groupStopTyping", ({ groupId }) => {
+        socket.to(`group_${groupId}`).emit("userGroupStopTyping", { groupId, userId });
+    });
+
+    // Call Signaling listeners
+    socket.on("startCall", ({ to, callId, isVideo, callerName, callerPic }) => {
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("incomingCall", {
+                from: userId,
+                callerName,
+                callerPic,
+                callId,
+                isVideo
+            });
+        }
+    });
+
+    socket.on("rejectCall", ({ to, callId }) => {
+        const callerSocketId = userSocketMap[to];
+        if (callerSocketId) {
+            io.to(callerSocketId).emit("callRejected", { callId });
+        }
+    });
+
+    socket.on("acceptCall", ({ to, callId }) => {
+        const callerSocketId = userSocketMap[to];
+        if (callerSocketId) {
+            io.to(callerSocketId).emit("callAccepted", { callId });
+        }
+    });
+
+    socket.on("endCall", ({ to, callId }) => {
+        const targetSocketId = userSocketMap[to];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit("callEnded", { callId });
+        } else {
+            socket.broadcast.emit("callEnded", { callId });
+        }
+    });
+
     socket.on("disconnect" ,() => {
         console.log("User disconnected", userId);
         delete userSocketMap[userId];
@@ -35,12 +106,19 @@ io.on("connection", (socket) => {
 })
 
 // Middleware setup
-app.use(express.json({limit: "4mb"})); 
-app.use(cors());
+app.use(express.json({limit: "50mb"})); 
+app.use(express.urlencoded({limit: "50mb", extended: true}));
+app.use(cors(
+    {
+    origin: "http://localhost:5173",
+    // credentials: true, // allow frontend to send cookies
+}
+));
 // Routes setup
-app.use("/api/status", (req, res) => res.send("server is live"))
+app.use("/api/status", statusRouter);
 app.use("/api/auth", userRouter);
 app.use('/api/messages', messageRouter);
+app.use('/api/groups', groupRouter);
 
 // connect to Mongodb
 await connectDB();

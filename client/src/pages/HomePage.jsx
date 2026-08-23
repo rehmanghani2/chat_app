@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar'
 import ChatContainer from '../components/ChatContainer'
 import RightSidebar from '../components/RightSidebar'
 import { ChatContext } from '../../context/chatContext'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const HomePage = () => {
 

@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
     password: {type: String, required: true, minlength: 6},
     profilePic: {type: String, default: ""},
     bio: {type: String},
+    lastSeen: {type: Date, default: Date.now},
+    blockedUsers: [{type: mongoose.Schema.Types.ObjectId, ref: "User"}]
 }, {timestamps: true});
 
 const User = mongoose.model("User", userSchema);
