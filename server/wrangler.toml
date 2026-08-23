@@ -1,7 +1,7 @@
-name = "chat-app-backend"
+name = "chat-app"
 main = "server.js"
 compatibility_date = "2024-09-25"
-compatibility_flags = [ "nodejs_compat" ]
+compatibility_flags = [ "nodejs_compat", "nodejs_als" ]
 
 [vars]
 NODE_ENV = "production"
