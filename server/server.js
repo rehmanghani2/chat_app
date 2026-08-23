@@ -171,5 +171,37 @@ if (!isServerless && server && typeof server.listen === 'function') {
     server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
 }
 
-// Export app/server for Vercel / Cloudflare serverless deployments
+// Cloudflare Workers fetch event handler compatibility
+app.fetch = async (request, env, ctx) => {
+    return new Promise((resolve) => {
+        const res = {
+            statusCode: 200,
+            headers: {},
+            setHeader(k, v) { this.headers[k] = v; },
+            getHeader(k) { return this.headers[k]; },
+            status(code) { this.statusCode = code; return this; },
+            json(data) {
+                resolve(new Response(JSON.stringify(data), {
+                    status: this.statusCode,
+                    headers: { 'Content-Type': 'application/json', ...this.headers }
+                }));
+            },
+            send(data) {
+                resolve(new Response(data, {
+                    status: this.statusCode,
+                    headers: this.headers
+                }));
+            },
+            end(data) {
+                resolve(new Response(data || '', {
+                    status: this.statusCode,
+                    headers: this.headers
+                }));
+            }
+        };
+        app(request, res);
+    });
+};
+
+// Export app for Vercel / Cloudflare serverless deployments
 export default app;
