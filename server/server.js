@@ -114,6 +114,17 @@ app.use(cors({
     credentials: true
 }));
 
+// Auto-Connect DB on incoming request for Serverless / Local
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (err) {
+        console.error("Database connection middleware error:", err);
+        next();
+    }
+});
+
 // Health Check Status Route
 app.get("/", (req, res) => {
     res.json({
@@ -127,7 +138,7 @@ app.get("/api/health", (req, res) => {
     res.status(200).json({
         status: "healthy",
         uptime: process.uptime(),
-        database: "connected"
+        environment: process.env.NODE_ENV || "development"
     });
 });
 
@@ -137,11 +148,20 @@ app.use("/api/auth", userRouter);
 app.use('/api/messages', messageRouter);
 app.use('/api/groups', groupRouter);
 
-// connect to Mongodb
-await connectDB();
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error("Server Error:", err);
+    res.status(500).json({
+        success: false,
+        message: err.message || "Internal Server Error"
+    });
+});
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, ()=> console.log("Server is running on PORT: " , PORT));
+// Only start TCP listener when NOT running inside Vercel serverless environment
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
+}
 
-// Export server for Vercel / serverless deployments
-export default server;
+// Export app/server for Vercel / serverless deployments
+export default app;
